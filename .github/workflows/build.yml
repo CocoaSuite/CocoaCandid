@@ -1,0 +1,114 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+env:
+  OBS_VERSION: 32.2.2
+  # CocoaCandid's own virtual camera, so it never replaces OBS Studio's.
+  VIRTUALCAM_GUID: A793B180-5ECD-4920-97F2-99BD28DFA5E3
+
+jobs:
+  windows:
+    runs-on: windows-2025-vs2026
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: candid
+
+      - name: Read the version
+        id: ver
+        run: |
+          $v = (Select-String -Path candid/CMakeLists.txt -Pattern 'set\(CANDID_VERSION ([0-9.]+)\)').Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+          if ($env:GITHUB_REF -like 'refs/tags/v*' -and "v$v" -ne $env:GITHUB_REF_NAME) {
+            throw "Tag $env:GITHUB_REF_NAME does not match CANDID_VERSION $v in CMakeLists.txt"
+          }
+
+      - name: Get OBS Studio ${{ env.OBS_VERSION }} (libobs and plugins)
+        run: |
+          git clone --depth 1 --branch $env:OBS_VERSION --recurse-submodules --shallow-submodules https://github.com/obsproject/obs-studio obs
+
+      - name: Put CocoaCandid in place of the OBS frontend
+        run: |
+          Copy-Item -Recurse candid obs/candid -Exclude .git
+          $cm = Get-Content obs/CMakeLists.txt -Raw
+          if ($cm -notmatch 'add_subdirectory\(frontend\)') { throw 'obs-studio layout changed: add_subdirectory(frontend) not found' }
+          $cm = $cm -replace 'add_subdirectory\(frontend\)', "add_subdirectory(frontend/api)`nadd_subdirectory(candid)"
+          Set-Content obs/CMakeLists.txt $cm
+
+      - name: Restore the dependency cache
+        uses: actions/cache@v4
+        with:
+          path: obs/.deps
+          key: obs-deps-${{ env.OBS_VERSION }}-windows-x64
+
+      - name: Configure
+        working-directory: obs
+        run: >
+          cmake --preset windows-x64
+          -DENABLE_BROWSER=OFF -DENABLE_WEBSOCKET=OFF -DENABLE_SCRIPTING=OFF -DENABLE_AJA=OFF
+          -DENABLE_VLC=OFF -DENABLE_UPDATER=OFF
+          -DVIRTUALCAM_GUID="$env:VIRTUALCAM_GUID"
+
+      - name: Build
+        working-directory: obs
+        run: cmake --build build_x64 --config RelWithDebInfo --parallel
+
+      - name: Gather the app
+        working-directory: obs
+        run: |
+          cmake --install build_x64 --config RelWithDebInfo --prefix "$PWD/../app"
+          Set-Location ../app
+          # Plugins that only work inside OBS Studio's own window.
+          foreach ($p in 'frontend-tools', 'decklink-output-ui', 'decklink-captions', 'aja-output-ui', 'obs-websocket') {
+            Remove-Item -Force -ErrorAction SilentlyContinue "obs-plugins/64bit/$p.dll", "obs-plugins/64bit/$p.pdb"
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "data/obs-plugins/$p"
+          }
+          Get-ChildItem -Recurse -Filter *.pdb | Remove-Item -Force
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue include, lib, cmake
+          if (-not (Test-Path bin/64bit/CocoaCandid.exe)) { throw 'CocoaCandid.exe was not built' }
+          Copy-Item ../candid/LICENSE LICENSE.txt
+          Get-ChildItem bin/64bit | Select-Object Name, Length | Format-Table | Out-String | Write-Host
+
+      - name: Portable zip
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Compress-Archive -Path app/* -DestinationPath "release/CocoaCandid-${{ steps.ver.outputs.version }}-windows-x64-portable.zip"
+
+      - name: Installer
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          Invoke-WebRequest https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile app/vc_redist.x64.exe
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DSourceDir=$PWD\app" "/DOutDir=$PWD\release" candid/installer/CocoaCandid.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed' }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CocoaCandid-windows-x64
+          path: release/*
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: CocoaCandid ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release/*

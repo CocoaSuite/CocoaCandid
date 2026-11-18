@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="/">
+    <file>fonts/Inter-400.ttf</file>
+    <file>fonts/Inter-500.ttf</file>
+    <file>fonts/Inter-600.ttf</file>
+    <file>sounds/hello.mp3</file>
+    <file>icons/chevron.svg</file>
+    <file>icons/check.svg</file>
+    <file>icons/garnet.svg</file>
+    <file>icons/midnight.svg</file>
+  </qresource>
+</RCC>
