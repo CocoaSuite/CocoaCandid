@@ -13,7 +13,7 @@ It opens straight to your last scene. There's no splash or recent-files screen.
 - **Audio mixer**: level meters, volume, mute, listening (monitoring), sync delay, mono downmix and filters for each sound.
 - **Record**: MP4 that survives a crash (hybrid MP4), MKV, MOV, MPEG-TS or FLV, at stream quality, high, indistinguishable or lossless, on NVIDIA, Intel or AMD hardware encoders, with pause.
 - **Stream**: Twitch, YouTube, Kick and every service OBS knows, or a custom RTMP, SRT or WHIP server, with automatic reconnect and dynamic bitrate.
-- **Replay buffer**, **virtual camera**, **screenshots**, **full-screen or windowed projector**, **global hotkeys** and live stats (CPU, fps, render time, dropped frames, bitrate, free disk space).
+- **Replay buffer**, a **virtual camera** (it shows up in video-call apps as "CocoaCandid Virtual Camera"), **screenshots**, **full-screen or windowed projector**, **global hotkeys** and live stats (CPU, fps, render time, dropped frames, bitrate, free disk space).
 - **First launch**: the CocoaSuite hello and a short tour of the window, ending with a choice of Classic, Compact or Studio layout.
 - Dark and light themes, and the Garnet or Midnight app icon.
 

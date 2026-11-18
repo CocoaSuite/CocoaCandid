@@ -5,7 +5,7 @@
 #  - On its own against an installed libobs (find_package(libobs)), for development on Linux.
 cmake_minimum_required(VERSION 3.22)
 
-set(CANDID_VERSION 0.1.0)
+set(CANDID_VERSION 0.1.1)
 
 if(TARGET OBS::libobs)
   set(CANDID_IN_TREE ON)

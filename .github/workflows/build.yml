@@ -46,6 +46,23 @@ jobs:
           $cm = $cm -replace 'add_subdirectory\(frontend\)', "add_subdirectory(frontend/api)`nadd_subdirectory(candid)"
           Set-Content obs/CMakeLists.txt $cm
 
+      - name: Brand the virtual camera as CocoaCandid
+        run: |
+          # OBS's camera module calls itself "OBS Virtual Camera" and shows the OBS logo while idle. These
+          # edits give CocoaCandid its own name, idle picture and shared memory, so it never clashes with OBS.
+          function Patch($file, $from, $to) {
+            $t = Get-Content $file -Raw
+            if (-not $t.Contains($from)) { throw "Expected text not found in ${file}: $from" }
+            Set-Content $file $t.Replace($from, $to) -NoNewline
+          }
+          $d = 'obs/plugins/win-dshow'
+          Patch "$d/virtualcam-module/virtualcam-module.cpp" 'L"OBS Virtual Camera"' 'L"CocoaCandid Virtual Camera"'
+          Patch "$d/virtualcam-module/cmake/windows/obs-module.rc.in" 'OBS Virtual Camera output module' 'CocoaCandid Virtual Camera'
+          Patch "$d/shared-memory-queue.c" 'L"OBSVirtualCamVideo"' 'L"CocoaCandidCamVideo"'
+          Patch "$d/virtualcam-module/virtualcam-filter.cpp" 'obs-virtualcam.txt' 'cocoacandid-virtualcam.txt'
+          Patch "$d/virtualcam.c" '"obs-virtualcam.txt"' '"cocoacandid-virtualcam.txt"'
+          Copy-Item -Force candid/resources/virtualcam/placeholder.png "$d/data/placeholder.png"
+
       - name: Restore the dependency cache
         uses: actions/cache@v4
         with:
