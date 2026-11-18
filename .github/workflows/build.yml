@@ -15,6 +15,8 @@ env:
 jobs:
   windows:
     runs-on: windows-2025-vs2026
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     defaults:
       run:
         shell: pwsh
@@ -96,19 +98,38 @@ jobs:
           name: CocoaCandid-windows-x64
           path: release/*
 
+  # Publishes when the build is for a version tag, or when main carries a CANDID_VERSION that has no
+  # release yet (so bumping the version in CMakeLists.txt and pushing is all a release takes).
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: windows
+    if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Is this version released already?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.windows.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1 && [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "v$VERSION is already released; bump CANDID_VERSION to publish a new one."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/download-artifact@v4
+        if: steps.check.outputs.publish == 'true'
         with:
           path: release
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
+        if: steps.check.outputs.publish == 'true'
         with:
-          name: CocoaCandid ${{ github.ref_name }}
+          tag_name: v${{ needs.windows.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: CocoaCandid v${{ needs.windows.outputs.version }}
           generate_release_notes: true
+          make_latest: true
           files: release/*

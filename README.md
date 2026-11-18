@@ -29,6 +29,8 @@ Download the setup or the portable zip from the [latest release](https://github.
 
 Releases are built by [GitHub Actions](.github/workflows/build.yml): the workflow fetches OBS Studio's source at a fixed version, puts CocoaCandid in place of OBS's own frontend and builds libobs, the plugins and CocoaCandid together, so OBS's packaging bundles Qt, FFmpeg and every plugin next to `CocoaCandid.exe`.
 
+To publish a release, raise `CANDID_VERSION` in `CMakeLists.txt` and push to `main`: once the build passes, the workflow tags that version and publishes the setup and portable zip as the latest release. Pushing a `v*` tag works too.
+
 For development on Linux, CocoaCandid also builds against an installed libobs:
 
 ```sh
